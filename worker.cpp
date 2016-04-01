@@ -1,44 +1,53 @@
-#include <iostream>
-#include <cstdio>
+#include <bits/stdc++.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 #include <crypt.h>
-#include <string>
 #include <pthread.h>
 
-using namespace std;
+#define S_PORT_NUM 5557
+#define S_IP_ADDR  "192.168.0.14"
+#define FAIL "fw"
+#define HALTSUCCESS "hw"
+#define HELLO "iw"
 
 static volatile bool thread_halt = false;
+static int worker_socket;
 
 void *findPass(void* arg)
 {
 	// hash:flag:limit1:limit2 (both inclusive)
 	size_t separator;
-	string work,hash,salt,flag,limit1,limit2;
+	char send_buffer[128];
+	std::string work, hash, salt, flag, limit1, limit2, password;
 
-	work = *reinterpret_cast<string*>(arg);
+	work = *reinterpret_cast<std::string*>(arg);
 
-	salt = work.substr(0,2);
+	salt = work.substr(0, 2);
 	separator = work.find(':');
-	hash = work.substr(0,separator);
-	flag = work.substr(separator+1,3);
+	hash = work.substr(0, separator);
+	flag = work.substr(separator+1, 3);
 
-	bool numer = (flag[2]=='1');
-	bool upper = (flag[1]=='1');
-	bool lower = (flag[0]=='1');
+	bool numer = (flag[2] =='1');
+	bool upper = (flag[1] =='1');
+	bool lower = (flag[0] =='1');
 	
 	work = work.substr(separator+5);
 
 	separator = work.find(':');
-	limit1 = work.substr(0,separator);
-	limit2 = work.substr(separator+1);
+	limit1 = work.substr(0, separator);
+	limit2 = work.substr(separator + 1);
 
-	string password = limit1;
-	cout<<"Finding Password"<<endl;
+	password = limit1;
+	std::cout<<"Finding Password\n";
 
 	while(password <= limit2)
 	{
 		if (hash.compare(crypt(password.c_str(),salt.c_str())) == 0)
-		{
-			cout<<"Found:"<<password<<endl;
+		{	
+			// strncpy(status, FOUND, sizeof(status));
 			return NULL;
 		}
 		for(int i = password.size()-1; i>=0; i--)
@@ -93,29 +102,85 @@ void *findPass(void* arg)
 		}
 		if (thread_halt == true)
 		{
-			cout<<"Halted"<<endl;
+			strncpy(send_buffer, HALTSUCCESS, sizeof(send_buffer));
+			if(send(worker_socket, send_buffer, strlen(send_buffer), 0) == -1)
+				std::cout<<"Could not inform server about halt success!\n";
+
 			return NULL;
 		}
 	}
-	cout<<"Failed"<<endl;
+
+	strncpy(send_buffer, FAIL, sizeof(send_buffer));
+	if(send(worker_socket, send_buffer, strlen(send_buffer), 0) == -1)
+		std::cout<<"Could not inform server about fail!\n";
+
 	return NULL;
 }
 
 int main()
 {
+	int recv_bytes, yes = 1;
+	unsigned int sin_size = sizeof(sockaddr);
+	char recv_buffer[128], send_buffer[128];
 	pthread_t process;
-	string s;
+	std::string inp;
+	sockaddr_in s_socket_adr;
+
+	//! initializing worker socket
+	s_socket_adr.sin_family = AF_INET;
+	//! port
+	s_socket_adr.sin_port 	= htons(S_PORT_NUM);		// server port
+	//! in_addr
+	inet_aton(S_IP_ADDR, &(s_socket_adr.sin_addr));		// server address
+	memset(&(s_socket_adr.sin_zero), '\0', 8);
+
+	worker_socket = socket(PF_INET, SOCK_STREAM, 0);
+	setsockopt(worker_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+
+	if (worker_socket == 0)
+	{
+		std::cout<<"Could not create socket descriptor!\n";
+		return 1;
+	}
+
+	if (connect(worker_socket, (sockaddr*) &s_socket_adr, sin_size) == -1)
+	{
+		std::cout<<"Could not connect to server!\n";
+		return 1;
+	}
+
+	strncpy(send_buffer, HELLO, sizeof(send_buffer));
+	if(send(worker_socket, send_buffer, strlen(send_buffer), 0) == -1)
+	{
+		std::cout<<"Could not establish identity with server!\n";
+		return 1;
+	}
+
 	while(true)
 	{
-		cin>>s;
-		if (s=="Halt")
+		recv_bytes = recv(worker_socket, recv_buffer, sizeof(recv_buffer), 0);
+		if(recv_bytes <= 0)
 		{
-			thread_halt = true;
+			if (recv_bytes < 0)
+				std::cout<<"Error receiving data!\n";
+			else if (recv_bytes == 0)
+				std::cout<<"Server disconnected!\n";
+
+			close(worker_socket);
+			return 1;
 		}
 		else
-		{
-			thread_halt = false;
-			pthread_create(&process, NULL, &findPass, &s);
+		{	
+			inp = std::string(recv_buffer);
+			if (inp == "Halt")
+			{
+				thread_halt = true;
+			}
+			else
+			{
+				thread_halt = false;
+				pthread_create(&process, NULL, &findPass, &inp);
+			}
 		}
 	}	
 	return 0;
