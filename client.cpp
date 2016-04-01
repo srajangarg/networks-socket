@@ -19,6 +19,11 @@ void xsend(int socket, std::string mesg, std::string error)
 
 	return;
 }
+void xerror(std::string x)
+{
+	std::cout<<x<<std::endl;
+	std::exit(1);
+}
 
 int main()
 {	
@@ -40,17 +45,11 @@ int main()
 	setsockopt(client_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
 	if (client_socket == 0)
-	{
-		std::cout<<"Could not create socket descriptor!\n";
-		return 1;
-	}
-
+		xerror("Could not create socket descriptor!");
+	
 	if (connect(client_socket, (sockaddr*) &s_socket_adr, sin_size) == -1)
-	{
-		std::cout<<"Could not connect to server!\n";
-		return 1;
-	}
-
+		xerror("Could not connect to server!");
+	
 	xsend(client_socket, HELLO, "Identity could not be established");
 
 	std::cout<<"Enter string to send : "; std::cin>>inp;

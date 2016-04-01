@@ -19,10 +19,15 @@ void xsend(int socket, std::string mesg, std::string error)
 
 	return;
 }
+void xerror(std::string x)
+{
+	std::cout<<x<<std::endl;
+	std::exit(1);
+}
 
 int main()
 {	
-	int main_socket, accepted_socket;
+	int main_socket, accepted_socket, client_socket;
 	int max_socket, recv_bytes, yes = 1;
 	char recv_buffer[128];
 	unsigned int sin_size = sizeof(sockaddr);
@@ -30,6 +35,7 @@ int main()
 	std::string pass;
 	std::set<int> active_clients, idle_workers;
 	std::map<int, std::set<int> > active_workers;
+	std::map<int, int> workers_client;
 
 	sockaddr_in socket_adr;
 	//! initializing client socket
@@ -46,22 +52,13 @@ int main()
 	setsockopt(main_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
 	if (main_socket == 0)
-	{
-		std::cout<<"Could not create socket descriptor!\n";
-		return 1;
-	}
+		xerror("Could not create socket descriptor!");
 
 	if (bind(main_socket, (sockaddr*) &socket_adr, sin_size) == -1)
-	{
-		std::cout<<"Could not bind to socket!\n";
-		return 1;
-	}
+		xerror("Could not bind to socket!");
 
 	if (listen(main_socket, BACKLOG) == -1)
-	{
-		std::cout<<"Could not start listening!\n";
-		return 1;
-	}
+		xerror("Could not start listening!");
 
 	FD_SET(main_socket, &master);
 	max_socket = main_socket;
@@ -72,7 +69,7 @@ int main()
 		if (select(max_socket + 1, &reads, NULL, NULL, NULL) == -1)
 			std::cout<<"Select failed!\n";
 
-		// iterate over all sockets
+		// iterate over all sockets looking for news
 		for(int curr_socket = 0; curr_socket <= max_socket; ++curr_socket)
 		{		
 			// if a socket has written to the server, only then move ahead
@@ -136,16 +133,19 @@ int main()
 						// it's an 'i'ntroducing message!
 						case 'i':	
 
+							// client's intro
 							if (recv_buffer[1] == 'c')
 							{
 								active_clients.insert(curr_socket);
 								std::cout<<"A new client connected!\n";
 							}
+							// worker's intro
 							else if (recv_buffer[1] == 'w')
 							{
 								idle_workers.insert(curr_socket);
 								std::cout<<"A new worker connected!\n";
 							}
+
 							break;
 
 						// a 's'uccess recieved from a worker
@@ -154,21 +154,29 @@ int main()
 							// extract password
 							pass = std::string(recv_buffer + 1);
 							// send all workers a 'h'alt message
-							for(auto p : active_workers[curr_socket])
+							client_socket = workers_client[curr_socket];
+							for(auto p : active_workers[client_socket])
 							{
 								xsend(p, HALT, "Halt");
 								idle_workers.insert(p);
 							}
 							// send the password to client and remove the client
 							xsend(curr_socket, pass, "Password");
-							active_clients.erase(curr_socket);
-							active_workers.erase(curr_socket);
+							active_clients.erase(client_socket);
+							active_workers.erase(client_socket);
+
+							break;
+
+						// a worker 'f'ailed
+						case 'f':
+
+							// just add it to idle list, after removing from active
+							client_socket = workers_client[curr_socket];
+							active_workers[client_socket].erase(curr_socket);
+							idle_workers.insert(curr_socket);
 
 							break;
 					}
-
-					// if(send(curr_socket, recv_buffer, strlen(recv_buffer), 0) == -1)
-					// 	std::cout<<"Could not send data to client!\n";
 				}
 
 			}

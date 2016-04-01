@@ -25,6 +25,11 @@ void xsend(int socket, std::string mesg, std::string error)
 
 	return;
 }
+void xerror(std::string x)
+{
+	std::cout<<x<<std::endl;
+	std::exit(1);
+}
 
 void *findPass(void* arg)
 {
@@ -144,23 +149,12 @@ int main()
 	setsockopt(worker_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
 	if (worker_socket == 0)
-	{
-		std::cout<<"Could not create socket descriptor!\n";
-		return 1;
-	}
-
+		xerror("Could not create socket descriptor!");
+	
 	if (connect(worker_socket, (sockaddr*) &s_socket_adr, sin_size) == -1)
-	{
-		std::cout<<"Could not connect to server!\n";
-		return 1;
-	}
+		xerror("Could not connect to server!");
 
-	strncpy(send_buffer, HELLO, sizeof(send_buffer));
-	if(send(worker_socket, send_buffer, strlen(send_buffer), 0) == -1)
-	{
-		std::cout<<"Could not establish identity with server!\n";
-		return 1;
-	}
+	xsend(worker_socket, HELLO, "Identity could not be established");
 
 	while(true)
 	{
@@ -178,7 +172,7 @@ int main()
 		else
 		{	
 			inp = std::string(recv_buffer);
-			if (inp == "Halt")
+			if (inp == "h")
 			{
 				thread_halt = true;
 			}
