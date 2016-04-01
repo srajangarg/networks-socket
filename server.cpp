@@ -9,6 +9,18 @@
 #define IP_ADDR  "192.168.0.14"
 #define BACKLOG 10
 
+#define HELLO "Server is processing your request!"
+
+void xsend(int socket, std::string mesg, std::string error)
+{	
+	char send_buffer[128];
+	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
+	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
+		std::cout<<"Send error : "<<error<<"\n";
+
+	return;
+}
+
 int main()
 {	
 	int main_socket, accepted_socket;
@@ -119,6 +131,8 @@ int main()
 							{
 								active_clients.insert(curr_socket);
 								std::cout<<"A new client connected!\n";
+
+								xsend(curr_socket, HELLO);
 							}
 							else if (recv_buffer[1] == 'w')
 							{

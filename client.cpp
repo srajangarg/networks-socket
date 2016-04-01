@@ -9,10 +9,21 @@
 #define S_IP_ADDR  "192.168.0.14"
 #define HELLO "ic"
 
+
+void xsend(int socket, std::string mesg, std::string error)
+{	
+	char send_buffer[128];
+	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
+	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
+		std::cout<<"Send error : "<<error<<"\n";
+
+	return;
+}
+
 int main()
 {	
-	int client_socket;
-	int recv_bytes, yes = 1;
+	int client_socket, recv_bytes, yes = 1;
+	std::string inp;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
 	sockaddr_in s_socket_adr;
@@ -40,19 +51,10 @@ int main()
 		return 1;
 	}
 
-	strncpy(send_buffer, HELLO, sizeof(send_buffer));
-	if(send(client_socket, send_buffer, strlen(send_buffer), 0) == -1)
-	{
-		std::cout<<"Could not establish identity with server!\n";
-		return 1;
-	}
+	xsend(client_socket, HELLO, "Identity could not be established");
 
-	std::cout<<"Enter string to send : "; scanf("%s", send_buffer);
-	if(send(client_socket, send_buffer, strlen(send_buffer), 0) == -1)
-	{
-		std::cout<<"Could not send data to server!\n";
-		return 1;
-	}
+	std::cout<<"Enter string to send : "; std::cin>>inp;
+	xsend(client_socket, inp, "General");
 	
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 
