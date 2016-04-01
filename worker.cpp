@@ -16,6 +16,16 @@
 static volatile bool thread_halt = false;
 static int worker_socket;
 
+void xsend(int socket, std::string mesg, std::string error)
+{	
+	char send_buffer[128];
+	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
+	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
+		std::cout<<"Send error : "<<error<<"\n";
+
+	return;
+}
+
 void *findPass(void* arg)
 {
 	// hash:flag:limit1:limit2 (both inclusive)
@@ -47,7 +57,8 @@ void *findPass(void* arg)
 	{
 		if (hash.compare(crypt(password.c_str(),salt.c_str())) == 0)
 		{	
-			// strncpy(status, FOUND, sizeof(status));
+			// send the password!
+			xsend(worker_socket, "s" + password, "Password");
 			return NULL;
 		}
 		for(int i = password.size()-1; i>=0; i--)
@@ -102,17 +113,12 @@ void *findPass(void* arg)
 		}
 		if (thread_halt == true)
 		{
-			strncpy(send_buffer, HALTSUCCESS, sizeof(send_buffer));
-			if(send(worker_socket, send_buffer, strlen(send_buffer), 0) == -1)
-				std::cout<<"Could not inform server about halt success!\n";
-
+			xsend(worker_socket, HALTSUCCESS, "Halt Success");
 			return NULL;
 		}
 	}
 
-	strncpy(send_buffer, FAIL, sizeof(send_buffer));
-	if(send(worker_socket, send_buffer, strlen(send_buffer), 0) == -1)
-		std::cout<<"Could not inform server about fail!\n";
+	xsend(worker_socket, FAIL, "Fail");
 
 	return NULL;
 }

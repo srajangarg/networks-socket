@@ -55,7 +55,7 @@ int main()
 
 	std::cout<<"Enter string to send : "; std::cin>>inp;
 	xsend(client_socket, inp, "General");
-	
+
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 
 	if(recv_bytes <= 0)

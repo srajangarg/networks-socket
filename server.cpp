@@ -8,8 +8,7 @@
 #define PORT_NUM 5557
 #define IP_ADDR  "192.168.0.14"
 #define BACKLOG 10
-
-#define HELLO "Server is processing your request!"
+#define HALT "h"
 
 void xsend(int socket, std::string mesg, std::string error)
 {	
@@ -28,8 +27,9 @@ int main()
 	char recv_buffer[128];
 	unsigned int sin_size = sizeof(sockaddr);
 	fd_set master, reads;
-	std::set<int> active_clients, active_workers;
-	std::set<int>::iterator ite;
+	std::string pass;
+	std::set<int> active_clients, idle_workers;
+	std::map<int, std::set<int> > active_workers;
 
 	sockaddr_in socket_adr;
 	//! initializing client socket
@@ -72,12 +72,15 @@ int main()
 		if (select(max_socket + 1, &reads, NULL, NULL, NULL) == -1)
 			std::cout<<"Select failed!\n";
 
+		// iterate over all sockets
 		for(int curr_socket = 0; curr_socket <= max_socket; ++curr_socket)
-		{	
+		{		
+			// if a socket has written to the server, only then move ahead
 			if (not FD_ISSET(curr_socket, &reads))
 				continue;
 
-			if (curr_socket == main_socket)	// handle new connections	
+			// handle new connections
+			if (curr_socket == main_socket)	
 			{
 				accepted_socket = accept(main_socket, (sockaddr*) &socket_adr, &sin_size);
 
@@ -91,11 +94,13 @@ int main()
 					max_socket = accepted_socket;
 
 			}
-			else							// old connections, new data
+			// old connections, new data
+			else
 			{
 				recv_bytes = recv(curr_socket, recv_buffer, sizeof(recv_buffer), 0);
 
-				if(recv_bytes <= 0)			// errors + disconnects
+				// errors + disconnects
+				if(recv_bytes <= 0)
 				{
 					if (recv_bytes < 0)
 					{
@@ -103,42 +108,62 @@ int main()
 					}
 					else if (recv_bytes == 0)
 					{	
-						ite = active_workers.find(curr_socket);
-						if (ite != active_workers.end())
+						if (idle_workers.find(curr_socket) != idle_workers.end())
 						{
-							active_workers.erase(ite);
-							std::cout<<"A worker disconnected!\n";
+							idle_workers.erase(idle_workers.find(curr_socket));
+							std::cout<<"An idle worker disconnected!\n";
+						}
+						else if (active_clients.find(curr_socket) != active_clients.end())
+						{
+							active_clients.erase(active_clients.find(curr_socket));
+							std::cout<<"A client disconnected!\n";
 						}
 						else
 						{
-							ite = active_clients.find(curr_socket);
-							active_clients.erase(ite);
-							std::cout<<"A client disconnected!\n";
+							std::cout<<"Error : A non-idle work disconnected!\n";
 						}
 					}
 
 					close(curr_socket);
 					FD_CLR(curr_socket, &master);
 				}
-				else						// actual server work
+				// actual server work
+				else
 				{
 					// recv_buffer has the recieved data, from the curr_socket
 					switch (recv_buffer[0])
 					{
-						case 'i':
+						// it's an 'i'ntroducing message!
+						case 'i':	
 
 							if (recv_buffer[1] == 'c')
 							{
 								active_clients.insert(curr_socket);
 								std::cout<<"A new client connected!\n";
-
-								xsend(curr_socket, HELLO);
 							}
 							else if (recv_buffer[1] == 'w')
 							{
-								active_workers.insert(curr_socket);
+								idle_workers.insert(curr_socket);
 								std::cout<<"A new worker connected!\n";
 							}
+							break;
+
+						// a 's'uccess recieved from a worker
+						case 's':
+
+							// extract password
+							pass = std::string(recv_buffer + 1);
+							// send all workers a 'h'alt message
+							for(auto p : active_workers[curr_socket])
+							{
+								xsend(p, HALT, "Halt");
+								idle_workers.insert(p);
+							}
+							// send the password to client and remove the client
+							xsend(curr_socket, pass, "Password");
+							active_clients.erase(curr_socket);
+							active_workers.erase(curr_socket);
+
 							break;
 					}
 
