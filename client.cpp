@@ -49,9 +49,11 @@ int main()
 		xerror("Could not connect to server!");
 	
 	xsend(client_socket, HELLO, "Identity could not be established");
+	xsend(client_socket, HELLO, "Identity could not be established");
 
-	request = "rhash:flag:passlen";  
-	xsend(client_socket, request, "Hash");
+	// request = "rabFZSxKKdq5s6:111:3";
+	// xsend(client_socket, request, "Hash");
+	// std::cout<<"Sent cracking request!\n";
 
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 

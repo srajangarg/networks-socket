@@ -73,11 +73,11 @@ std::set<std::string> dividework(std::string flag, int passLen, int client_socke
 int main()
 {	
 	int main_socket, accepted_socket, client_socket;
-	int max_socket, recv_bytes, yes = 1, passlen;
+	int max_socket, recv_bytes, yes = 1, passlen, worker;
 	char recv_buffer[128];
 	unsigned int sin_size = sizeof(sockaddr);
 	fd_set master, reads;
-	std::string pass, hash, flag, work, piece;
+	std::string pass, hash, flag, work, piece, random;
 	std::set<int> active_clients, idle_workers;
 	std::map<int, std::set<int> > active_workers;
 	std::map<int, int> workers_client;
@@ -114,11 +114,11 @@ int main()
 
 		// iterate over all sockets looking for news
 		for(int curr_socket = 0; curr_socket <= max_socket; ++curr_socket)
-		{		
+		{
 			// if a socket has written to the server, only then move ahead
 			if (not FD_ISSET(curr_socket, &reads))
 				continue;
-
+			
 			// handle new connections
 			if (curr_socket == main_socket)	
 			{
@@ -128,7 +128,7 @@ int main()
 					std::cout<<"Could not accept new socket!\n";
 
 				FD_SET(accepted_socket, &master);
-				std::cout<<"A remote host connected!\n";
+				std::cout<<"Someone connected!\n";
 
 				if (accepted_socket > max_socket)
 					max_socket = accepted_socket;
@@ -176,25 +176,25 @@ int main()
 					{
 						// it's an 'i'ntroducing message!
 						case 'i':	
-
+						{
 							// client's intro
 							if (recv_buffer[1] == 'c')
 							{
 								active_clients.insert(curr_socket);
-								std::cout<<"A new client connected!\n";
+								std::cout<<"Client "<<curr_socket<<" connected!\n";
 							}
 							// worker's intro
 							else if (recv_buffer[1] == 'w')
 							{
 								idle_workers.insert(curr_socket);
-								std::cout<<"A new worker connected!\n";
+								std::cout<<"Worker "<<curr_socket<<" connected!\n";
 							}
 
 							break;
-
+						}
 						// a 's'uccess recieved from a worker
 						case 's':
-
+						{
 							// extract password
 							pass = std::string(recv_buffer + 1);
 							// send all workers a 'h'alt message
@@ -209,33 +209,47 @@ int main()
 							active_clients.erase(client_socket);
 							active_workers.erase(client_socket);
 
+							FD_CLR(client_socket, &master);
+							// TODO : update max_socket
+
 							break;
+						}
 
 						// a worker 'f'ailed
 						case 'f':
-
+						{
 							// just add it to idle list, after removing from active
 							client_socket = workers_client[curr_socket];
 							active_workers[client_socket].erase(curr_socket);
 							idle_workers.insert(curr_socket);
 
 							break;
+						}
 
 						// a client 'r'equest
 						case 'r':
-
+						{
+							std::cout<<"\nClient "<<curr_socket<<" requested to crack!\n";
 							work = std::string(recv_buffer + 1);
 							int separator = work.find(':');
 							hash = work.substr(0, separator);
 							flag = work.substr(separator + 1, 3);
-							int new_separator = work.find(':', separator + 5);
+							int new_separator = work.find(':', separator + 4);
 							passlen = std::stoi(work.substr(new_separator + 1, work.length() - new_separator - 1));
+							std::cout<<"Hash: "<<hash<<", Flag: "<<flag<<", PassLen: "<<passlen<<"\n";
 
 							// new work pieces
-							new_pieces = dividework(flag, passlen, client_socket, hash);
+							new_pieces = dividework(flag, passlen, curr_socket, hash);
 							pieces.insert(new_pieces.begin(), new_pieces.end());
 
 							break;
+						}
+
+						default :
+						{
+							random = std::string(recv_buffer);
+							std::cout<<"Recieved "<<random<<"\n";
+						}
 					}
 				}
 
@@ -243,18 +257,25 @@ int main()
 		}
 
 		// server assigns work to idle workers, from pieces
-		for(auto worker : idle_workers)
+		while(true)
 		{	
-			if (pieces.empty())
+			if (pieces.empty() or idle_workers.empty())
 				break;
 
 			piece = (*pieces.begin());
+			worker = (*idle_workers.begin());
+
+			// add worker to active_workers
 			int separator = piece.find(":");
 			client_socket = std::stoi(piece.substr(0, separator));
 			piece = piece.substr(separator+1, piece.length() - separator - 1);
+			active_workers[client_socket].insert(worker);
 
+			// send piece to worker, remove from idle workers and remove piece
 			xsend(worker, piece, "Could not send piece!");
+			std::cout<<"Assigned Client "<<client_socket<<"s "<<piece<<" to Worker "<<worker<<"\n";
 			idle_workers.erase(worker);
+			pieces.erase(piece);
 		}
 
 	}

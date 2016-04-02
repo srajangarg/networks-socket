@@ -56,7 +56,6 @@ void *findPass(void* arg)
 	limit2 = work.substr(separator + 1);
 
 	password = limit1;
-	std::cout<<"Finding Password\n";
 
 	while(password <= limit2)
 	{
@@ -170,14 +169,17 @@ int main()
 		else
 		{	
 			inp = std::string(recv_buffer);
+			std::cout<<"Server sent : "<<inp<<"\n";
+
 			if (inp == "halt")
 			{
 				thread_halt = true;
 			}
 			else
-			{
+			{	
+				std::cout<<"Thread created!\n";
 				thread_halt = false;
-				pthread_create(&process, NULL, &findPass, &inp);
+				// pthread_create(&process, NULL, &findPass, &inp);
 			}
 		}
 	}	
