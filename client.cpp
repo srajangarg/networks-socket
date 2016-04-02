@@ -5,8 +5,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define S_PORT_NUM 5557
-#define S_IP_ADDR  "192.168.0.14"
+#define S_PORT_NUM 5558
+#define S_IP_ADDR  "127.0.0.1"
 #define HELLO "ic"
 
 
@@ -14,6 +14,7 @@ void xsend(int socket, std::string mesg, std::string error)
 {	
 	char send_buffer[128];
 	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
+
 	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
 		std::cout<<"Send error : "<<error<<"\n";
 
@@ -49,11 +50,10 @@ int main()
 		xerror("Could not connect to server!");
 	
 	xsend(client_socket, HELLO, "Identity could not be established");
-	xsend(client_socket, HELLO, "Identity could not be established");
 
-	// request = "rabFZSxKKdq5s6:111:3";
-	// xsend(client_socket, request, "Hash");
-	// std::cout<<"Sent cracking request!\n";
+	request = "rabFZSxKKdq5s6:111:3";
+	xsend(client_socket, request, "Hash");
+	std::cout<<"Sent cracking request!\n";
 
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 

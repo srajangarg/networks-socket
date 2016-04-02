@@ -5,16 +5,18 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define PORT_NUM 5557
-#define IP_ADDR  "192.168.0.14"
+#define PORT_NUM 5558
+#define IP_ADDR  "127.0.0.1"
 #define BACKLOG 10
 #define HALT "halt"
 
 void xsend(int socket, std::string mesg, std::string error)
 {	
 	char send_buffer[128];
-	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
-	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
+	strncpy(send_buffer, mesg.c_str(), mesg.length());	
+	send_buffer[mesg.length()] = '\0';
+
+	if(send(socket, send_buffer, mesg.length()+1, 0) == -1)
 		std::cout<<"Send error : "<<error<<"\n";
 
 	return;
@@ -77,7 +79,7 @@ int main()
 	char recv_buffer[128];
 	unsigned int sin_size = sizeof(sockaddr);
 	fd_set master, reads;
-	std::string pass, hash, flag, work, piece, random;
+	std::string pass, hash, flag, work, piece, xpiece, random;
 	std::set<int> active_clients, idle_workers;
 	std::map<int, std::set<int> > active_workers;
 	std::map<int, int> workers_client;
@@ -128,7 +130,7 @@ int main()
 					std::cout<<"Could not accept new socket!\n";
 
 				FD_SET(accepted_socket, &master);
-				std::cout<<"Someone connected!\n";
+				// std::cout<<"Someone connected!\n";
 
 				if (accepted_socket > max_socket)
 					max_socket = accepted_socket;
@@ -151,6 +153,7 @@ int main()
 						if (idle_workers.find(curr_socket) != idle_workers.end())
 						{
 							idle_workers.erase(curr_socket);
+							workers_client.erase(curr_socket);
 							std::cout<<"An idle worker disconnected!\n";
 						}
 						else if (active_clients.find(curr_socket) != active_clients.end())
@@ -194,24 +197,37 @@ int main()
 						}
 						// a 's'uccess recieved from a worker
 						case 's':
-						{
+						{	
+							std::cout<<"Worker "<<curr_socket<<" succeeded!\n";
+
 							// extract password
 							pass = std::string(recv_buffer + 1);
-							// send all workers a 'h'alt message
 							client_socket = workers_client[curr_socket];
+							std::cout<<"The password of Client "<<client_socket<<" is "<<pass<<"\n";
+
+							// add all workers which were working on client's task to idle
+							// also send them a halt message
 							for(auto p : active_workers[client_socket])
 							{
 								xsend(p, HALT, "Halt");
 								idle_workers.insert(p);
 							}
+
+							// remove remaining pieces from pieces set
+							for(auto p : pieces)
+							{
+								int separator = p.find(":");
+								if(std::stoi(p.substr(0, separator)) == client_socket)
+									pieces.erase(p);
+							}
+
 							// send the password to client and remove the client
-							xsend(curr_socket, pass, "Password");
+							xsend(client_socket, pass, "Password");
 							active_clients.erase(client_socket);
 							active_workers.erase(client_socket);
 
 							FD_CLR(client_socket, &master);
 							// TODO : update max_socket
-
 							break;
 						}
 
@@ -232,13 +248,15 @@ int main()
 							std::cout<<"\nClient "<<curr_socket<<" requested to crack!\n";
 							work = std::string(recv_buffer + 1);
 							int separator = work.find(':');
+							int new_separator = work.find(':', separator + 4);
+
 							hash = work.substr(0, separator);
 							flag = work.substr(separator + 1, 3);
-							int new_separator = work.find(':', separator + 4);
 							passlen = std::stoi(work.substr(new_separator + 1, work.length() - new_separator - 1));
+
 							std::cout<<"Hash: "<<hash<<", Flag: "<<flag<<", PassLen: "<<passlen<<"\n";
 
-							// new work pieces
+							// new work pieces to be added to main work pieces
 							new_pieces = dividework(flag, passlen, curr_socket, hash);
 							pieces.insert(new_pieces.begin(), new_pieces.end());
 
@@ -265,15 +283,20 @@ int main()
 			piece = (*pieces.begin());
 			worker = (*idle_workers.begin());
 
-			// add worker to active_workers
 			int separator = piece.find(":");
 			client_socket = std::stoi(piece.substr(0, separator));
-			piece = piece.substr(separator+1, piece.length() - separator - 1);
-			active_workers[client_socket].insert(worker);
+			xpiece = piece.substr(separator+1, piece.length() - separator - 1);
 
 			// send piece to worker, remove from idle workers and remove piece
-			xsend(worker, piece, "Could not send piece!");
-			std::cout<<"Assigned Client "<<client_socket<<"s "<<piece<<" to Worker "<<worker<<"\n";
+			xsend(worker, xpiece, "Could not send piece!");
+			// who's worker is this?
+			workers_client[worker] = client_socket;
+			// add worker to active_workers
+			active_workers[client_socket].insert(worker);
+
+			std::cout<<"Assigned Client "<<client_socket<<"s "<<xpiece<<" to Worker "<<worker<<"\n";
+
+			// erase piece and remove idle worker
 			idle_workers.erase(worker);
 			pieces.erase(piece);
 		}

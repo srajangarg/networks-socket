@@ -7,8 +7,8 @@
 #include <crypt.h>
 #include <pthread.h>
 
-#define S_PORT_NUM 5557
-#define S_IP_ADDR  "192.168.0.14"
+#define S_PORT_NUM 5558
+#define S_IP_ADDR  "127.0.0.1"
 #define FAIL "fw"
 #define HALTSUCCESS "hw"
 #define HELLO "iw"
@@ -19,8 +19,10 @@ static int worker_socket;
 void xsend(int socket, std::string mesg, std::string error)
 {	
 	char send_buffer[128];
-	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
-	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
+	strncpy(send_buffer, mesg.c_str(), mesg.length());	
+	send_buffer[mesg.length()] = '\0';
+	
+	if(send(socket, send_buffer, mesg.length()+1, 0) == -1)
 		std::cout<<"Send error : "<<error<<"\n";
 
 	return;
@@ -34,8 +36,7 @@ void xerror(std::string x)
 void *findPass(void* arg)
 {
 	// hash:flag:limit1:limit2 (both inclusive)
-	size_t separator;
-	char send_buffer[128];
+	int separator;
 	std::string work, hash, salt, flag, limit1, limit2, password;
 
 	work = *reinterpret_cast<std::string*>(arg);
@@ -62,6 +63,7 @@ void *findPass(void* arg)
 		if (hash.compare(crypt(password.c_str(),salt.c_str())) == 0)
 		{	
 			// send the password!
+			std::cout<<"Cracked! Password : "<<password<<"\n";
 			xsend(worker_socket, "s" + password, "Password");
 			return NULL;
 		}
@@ -122,6 +124,7 @@ void *findPass(void* arg)
 		}
 	}
 
+	std::cout<<"Failed!\n";
 	xsend(worker_socket, FAIL, "Fail");
 
 	return NULL;
@@ -167,19 +170,18 @@ int main()
 			return 1;
 		}
 		else
-		{	
+		{
 			inp = std::string(recv_buffer);
-			std::cout<<"Server sent : "<<inp<<"\n";
 
 			if (inp == "halt")
-			{
+			{	
+				std::cout<<"Recieved halt from server!";
 				thread_halt = true;
 			}
 			else
 			{	
-				std::cout<<"Thread created!\n";
 				thread_halt = false;
-				// pthread_create(&process, NULL, &findPass, &inp);
+				pthread_create(&process, NULL, &findPass, &inp);
 			}
 		}
 	}	
