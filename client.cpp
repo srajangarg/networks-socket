@@ -5,19 +5,19 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define S_PORT_NUM 5558
-#define S_IP_ADDR  "127.0.0.1"
 #define HELLO "ic"
 
 
 void xsend(int socket, std::string mesg, std::string error)
 {	
 	char send_buffer[128];
-	strncpy(send_buffer, mesg.c_str(), sizeof(send_buffer));
+	strncpy(send_buffer, mesg.c_str(), mesg.length());	
+	send_buffer[mesg.length()] = '\0';
 
-	if(send(socket, send_buffer, strlen(send_buffer), 0) == -1)
+	if(send(socket, send_buffer, mesg.length()+1, 0) == -1)
 		std::cout<<"Send error : "<<error<<"\n";
-
+	else
+		std::cout<<"Sent to server "<<send_buffer<<"\n";
 	return;
 }
 void xerror(std::string x)
@@ -26,18 +26,33 @@ void xerror(std::string x)
 	std::exit(1);
 }
 
-int main()
+int main(int argc, char* argv[])
 {	
 	int client_socket, recv_bytes, yes = 1;
+	int s_port_num;
+	char* s_ip_addr;
 	std::string inp, request;
+	std::string hash,passLen,flag;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
 	sockaddr_in s_socket_adr;
 
+	// read arguments
+	if(argc < 6)
+	{
+		std::cerr<<"Syntax : ./user <server ip> <server-port> <hash> <passwd-length> <flag>\n";
+	}
+
+	s_ip_addr = argv[1];
+	s_port_num = std::stoi(argv[2]);
+	hash = argv[3];
+	passLen = argv[4];
+	flag = argv[5];
+
 	//! initializing client socket
 	s_socket_adr.sin_family = AF_INET;
-	s_socket_adr.sin_port 	= htons(S_PORT_NUM);		// server port
-	inet_aton(S_IP_ADDR, &(s_socket_adr.sin_addr));		// server address
+	s_socket_adr.sin_port 	= htons(s_port_num);		// server port
+	inet_aton(s_ip_addr, &(s_socket_adr.sin_addr));		// server address
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
 	client_socket = socket(PF_INET, SOCK_STREAM, 0);
@@ -51,7 +66,7 @@ int main()
 	
 	xsend(client_socket, HELLO, "Identity could not be established");
 
-	request = "rabFZSxKKdq5s6:111:3";
+	request = 'r' + hash + ":" + flag + ":" + passLen;
 	xsend(client_socket, request, "Hash");
 	std::cout<<"Sent cracking request!\n";
 

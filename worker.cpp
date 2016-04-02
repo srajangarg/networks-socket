@@ -7,8 +7,7 @@
 #include <crypt.h>
 #include <pthread.h>
 
-#define S_PORT_NUM 5558
-#define S_IP_ADDR  "127.0.0.1"
+
 #define FAIL "fw"
 #define HALTSUCCESS "hw"
 #define HELLO "iw"
@@ -58,7 +57,7 @@ void *findPass(void* arg)
 
 	password = limit1;
 
-	while(password <= limit2)
+	while(true)
 	{
 		if (hash.compare(crypt(password.c_str(),salt.c_str())) == 0)
 		{	
@@ -67,6 +66,8 @@ void *findPass(void* arg)
 			xsend(worker_socket, "s" + password, "Password");
 			return NULL;
 		}
+		if(password == limit2)
+			break;
 		for(int i = password.size()-1; i>=0; i--)
 		{
 			if (password[i] == '9')
@@ -130,19 +131,31 @@ void *findPass(void* arg)
 	return NULL;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
 	int recv_bytes, yes = 1;
+	int s_port_num;
+	char* s_ip_addr;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
 	pthread_t process;
 	std::string inp;
 	sockaddr_in s_socket_adr;
 
+	// read arguments
+	if(argc < 3)
+	{
+		std::cerr<<"Syntax : ./worker <server ip> <server-port>\n";
+		return 0;
+	}
+
+	s_ip_addr  = argv[1];
+	s_port_num = std::stoi(argv[2]);
+
 	//! initializing worker socket
 	s_socket_adr.sin_family = AF_INET;
-	s_socket_adr.sin_port 	= htons(S_PORT_NUM);		// server port
-	inet_aton(S_IP_ADDR, &(s_socket_adr.sin_addr));		// server address
+	s_socket_adr.sin_port 	= htons(s_port_num);		// server port
+	inet_aton(s_ip_addr, &(s_socket_adr.sin_addr));		// server address
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
 	worker_socket = socket(PF_INET, SOCK_STREAM, 0);

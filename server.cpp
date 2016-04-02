@@ -5,7 +5,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define PORT_NUM 5558
 #define IP_ADDR  "127.0.0.1"
 #define BACKLOG 10
 #define HALT "halt"
@@ -72,10 +71,11 @@ std::set<std::string> dividework(std::string flag, int passLen, int client_socke
 	// client:hash:flag:limit1:limit2
 }
 
-int main()
+int main(int argc, char* argv[])
 {	
 	int main_socket, accepted_socket, client_socket;
 	int max_socket, recv_bytes, yes = 1, passlen, worker;
+	int portNo;
 	char recv_buffer[128];
 	unsigned int sin_size = sizeof(sockaddr);
 	fd_set master, reads;
@@ -85,9 +85,18 @@ int main()
 	std::map<int, int> workers_client;
 	std::set<std::string> pieces, new_pieces;
 
+	// read arguments
+	if(argc < 2)
+	{
+		std::cerr<<"Syntax : ./server <server-port>\n";
+		return 0;
+	}
+
+	portNo = std::stoi(argv[1]);
+
 	sockaddr_in socket_adr;
 	socket_adr.sin_family = AF_INET;
-	socket_adr.sin_port = htons(PORT_NUM);					// custom port
+	socket_adr.sin_port = htons(portNo);					// custom port
 	inet_aton(IP_ADDR, &(socket_adr.sin_addr));				// custom address
 	// socket_adr.sin_addr.s_addr = INADDR_ANY;				// current address
 	memset(&(socket_adr.sin_zero), '\0', 8);
@@ -154,16 +163,16 @@ int main()
 						{
 							idle_workers.erase(curr_socket);
 							workers_client.erase(curr_socket);
-							std::cout<<"An idle worker disconnected!\n";
+							std::cout<<"An idle worker disconnected! Worker "<<curr_socket<<"\n";
 						}
 						else if (active_clients.find(curr_socket) != active_clients.end())
 						{
 							active_clients.erase(curr_socket);
-							std::cout<<"A client disconnected!\n";
+							std::cout<<"Client "<<curr_socket<<" disconnected!\n";
 						}
 						else
 						{
-							std::cout<<"Error : A non-idle work disconnected!\n";
+							std::cout<<"Error : A non-idle worker disconnected! Worker "<<curr_socket<<"\n";
 						}
 					}
 
@@ -294,7 +303,7 @@ int main()
 			// add worker to active_workers
 			active_workers[client_socket].insert(worker);
 
-			std::cout<<"Assigned Client "<<client_socket<<"s "<<xpiece<<" to Worker "<<worker<<"\n";
+			std::cout<<"Assigned Client "<<client_socket<<"'s "<<xpiece<<" to Worker "<<worker<<"\n";
 
 			// erase piece and remove idle worker
 			idle_workers.erase(worker);
