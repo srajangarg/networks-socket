@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
 	// read arguments
 	if(argc < 3)
 	{
-		std::cerr<<"Syntax : ./worker <server ip> <server-port>\n";
+		std::cout<<"Syntax : ./worker <server ip> <server-port>\n";
 		return 0;
 	}
 

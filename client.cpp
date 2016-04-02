@@ -16,8 +16,7 @@ void xsend(int socket, std::string mesg, std::string error)
 
 	if(send(socket, send_buffer, mesg.length()+1, 0) == -1)
 		std::cout<<"Send error : "<<error<<"\n";
-	else
-		std::cout<<"Sent to server "<<send_buffer<<"\n";
+
 	return;
 }
 void xerror(std::string x)
@@ -40,7 +39,7 @@ int main(int argc, char* argv[])
 	// read arguments
 	if(argc < 6)
 	{
-		std::cerr<<"Syntax : ./user <server ip> <server-port> <hash> <passwd-length> <flag>\n";
+		std::cout<<"Syntax : ./user <server ip> <server-port> <hash> <passwd-length> <flag>\n";
 	}
 
 	s_ip_addr = argv[1];
@@ -64,7 +63,7 @@ int main(int argc, char* argv[])
 	if (connect(client_socket, (sockaddr*) &s_socket_adr, sin_size) == -1)
 		xerror("Could not connect to server!");
 	
-	xsend(client_socket, HELLO, "Identity could not be established");
+	//xsend(client_socket, HELLO, "Identity could not be established");
 
 	request = 'r' + hash + ":" + flag + ":" + passLen;
 	xsend(client_socket, request, "Hash");
@@ -82,6 +81,8 @@ int main(int argc, char* argv[])
 		close(client_socket);
 		return 1;
 	}
+	else if(strcmp(recv_buffer,"Failed!")==0)
+		std::cout<<"No password exist for given hash, flags and password length\n";
 	else
 		std::cout<<"Cracked! Password : "<<recv_buffer<<"\n";
 

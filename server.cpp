@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <fstream>
 
 #define IP_ADDR  "127.0.0.1"
 #define BACKLOG 10
@@ -80,15 +81,17 @@ int main(int argc, char* argv[])
 	unsigned int sin_size = sizeof(sockaddr);
 	fd_set master, reads;
 	std::string pass, hash, flag, work, piece, xpiece, random;
-	std::set<int> active_clients, idle_workers;
-	std::map<int, std::set<int> > active_workers;
-	std::map<int, int> workers_client;
+	std::set<int> active_clients, success_clients, idle_workers;
+	std::map<int, std::set<int> > active_workers;					// map from client to the set of workers working on client's task
+	std::map<int, int> workers_client;								// map from worker to client on whose task it is working
+	std::map<int, std::string> workers_piece;							// map from worker to piece on which it is working
+	std::map<int, int> client_work_rem;								// map from client to no of pieces yet to be solved for the client
 	std::set<std::string> pieces, new_pieces;
 
 	// read arguments
 	if(argc < 2)
 	{
-		std::cerr<<"Syntax : ./server <server-port>\n";
+		std::cout<<"Syntax : ./server <server-port>\n";
 		return 0;
 	}
 
@@ -168,11 +171,21 @@ int main(int argc, char* argv[])
 						else if (active_clients.find(curr_socket) != active_clients.end())
 						{
 							active_clients.erase(curr_socket);
-							std::cout<<"Client "<<curr_socket<<" disconnected!\n";
+							std::cout<<"Client "<<curr_socket<<" disconnected in between the process!\n";
+						}
+						else if(success_clients.find(curr_socket) != success_clients.end())
+						{
+							success_clients.erase(curr_socket);
+							std::cout<<"Client "<<curr_socket<<" disconnected after successfully getting the result!\n";
 						}
 						else
 						{
-							std::cout<<"Error : A non-idle worker disconnected! Worker "<<curr_socket<<"\n";
+							std::map<int,std::string>::iterator it = workers_piece.find(curr_socket);
+							if(it!= workers_piece.end());
+							{
+								std::cout<<"A non-idle worker disconnected! Worker "<<curr_socket<<"\n";
+								pieces.insert(it->second);
+							}
 						}
 					}
 
@@ -186,21 +199,13 @@ int main(int argc, char* argv[])
 					// recv_buffer has the recieved data, from the curr_socket
 					switch (recv_buffer[0])
 					{
-						// it's an 'i'ntroducing message!
+						// it's an 'i'ntroducing message for worker!
 						case 'i':	
 						{
-							// client's intro
-							if (recv_buffer[1] == 'c')
-							{
-								active_clients.insert(curr_socket);
-								std::cout<<"Client "<<curr_socket<<" connected!\n";
-							}
+
 							// worker's intro
-							else if (recv_buffer[1] == 'w')
-							{
-								idle_workers.insert(curr_socket);
-								std::cout<<"Worker "<<curr_socket<<" connected!\n";
-							}
+							idle_workers.insert(curr_socket);
+							std::cout<<"Worker "<<curr_socket<<" connected!\n";
 
 							break;
 						}
@@ -213,6 +218,7 @@ int main(int argc, char* argv[])
 							pass = std::string(recv_buffer + 1);
 							client_socket = workers_client[curr_socket];
 							std::cout<<"The password of Client "<<client_socket<<" is "<<pass<<"\n";
+							client_work_rem.erase(client_socket);
 
 							// add all workers which were working on client's task to idle
 							// also send them a halt message
@@ -233,6 +239,7 @@ int main(int argc, char* argv[])
 							// send the password to client and remove the client
 							xsend(client_socket, pass, "Password");
 							active_clients.erase(client_socket);
+							success_clients.insert(client_socket);
 							active_workers.erase(client_socket);
 
 							FD_CLR(client_socket, &master);
@@ -247,13 +254,22 @@ int main(int argc, char* argv[])
 							client_socket = workers_client[curr_socket];
 							active_workers[client_socket].erase(curr_socket);
 							idle_workers.insert(curr_socket);
-
+							client_work_rem[client_socket]--;
+							if(client_work_rem[client_socket]==0)
+							{
+								xsend(client_socket, "Failed!", "No Password Found");
+								active_clients.erase(client_socket);
+								success_clients.insert(client_socket);
+							}
 							break;
 						}
 
 						// a client 'r'equest
 						case 'r':
 						{
+							active_clients.insert(curr_socket);
+							std::cout<<"Client "<<curr_socket<<" connected!\n";
+
 							std::cout<<"\nClient "<<curr_socket<<" requested to crack!\n";
 							work = std::string(recv_buffer + 1);
 							int separator = work.find(':');
@@ -268,6 +284,7 @@ int main(int argc, char* argv[])
 							// new work pieces to be added to main work pieces
 							new_pieces = dividework(flag, passlen, curr_socket, hash);
 							pieces.insert(new_pieces.begin(), new_pieces.end());
+							client_work_rem[curr_socket] = pieces.size();
 
 							break;
 						}
@@ -296,17 +313,23 @@ int main(int argc, char* argv[])
 			client_socket = std::stoi(piece.substr(0, separator));
 			xpiece = piece.substr(separator+1, piece.length() - separator - 1);
 
-			// send piece to worker, remove from idle workers and remove piece
-			xsend(worker, xpiece, "Could not send piece!");
-			// who's worker is this?
-			workers_client[worker] = client_socket;
-			// add worker to active_workers
-			active_workers[client_socket].insert(worker);
+			// check if the client is still active or disconnected
+			if(active_clients.find(client_socket) != active_clients.end())
+			{
+				// send piece to worker, remove from idle workers
+				xsend(worker, xpiece, "Could not send piece!");
+				// who's worker is this?
+				workers_client[worker] = client_socket;
+				// add worker to active_workers
+				active_workers[client_socket].insert(worker);
 
-			std::cout<<"Assigned Client "<<client_socket<<"'s "<<xpiece<<" to Worker "<<worker<<"\n";
+				std::cout<<"Assigned Client "<<client_socket<<"'s "<<xpiece<<" to Worker "<<worker<<"\n";
 
-			// erase piece and remove idle worker
-			idle_workers.erase(worker);
+				// erase piece and remove idle worker
+				idle_workers.erase(worker);
+				workers_piece[worker] = piece;
+			}
+			// remove the piece even if client is disconnected
 			pieces.erase(piece);
 		}
 
