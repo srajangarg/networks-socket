@@ -28,16 +28,14 @@ void xerror(std::string x)
 int main()
 {	
 	int client_socket, recv_bytes, yes = 1;
-	std::string inp;
+	std::string inp, request;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
 	sockaddr_in s_socket_adr;
 
 	//! initializing client socket
 	s_socket_adr.sin_family = AF_INET;
-	//! port
 	s_socket_adr.sin_port 	= htons(S_PORT_NUM);		// server port
-	//! in_addr
 	inet_aton(S_IP_ADDR, &(s_socket_adr.sin_addr));		// server address
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
@@ -52,8 +50,8 @@ int main()
 	
 	xsend(client_socket, HELLO, "Identity could not be established");
 
-	std::cout<<"Enter string to send : "; std::cin>>inp;
-	xsend(client_socket, inp, "General");
+	request = "rhash:flag:passlen";  
+	xsend(client_socket, request, "Hash");
 
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 
@@ -68,9 +66,7 @@ int main()
 		return 1;
 	}
 	else
-	{
-		std::cout<<"Recieved from server : "<<recv_buffer<<"\n";
-	}
+		std::cout<<"Cracked! Password : "<<recv_buffer<<"\n";
 
 	return 0;
 }

@@ -8,7 +8,7 @@
 #define PORT_NUM 5557
 #define IP_ADDR  "192.168.0.14"
 #define BACKLOG 10
-#define HALT "h"
+#define HALT "halt"
 
 void xsend(int socket, std::string mesg, std::string error)
 {	
@@ -25,24 +25,67 @@ void xerror(std::string x)
 	std::exit(1);
 }
 
+std::set<std::string> dividework(std::string flag, int passLen, int client_socket, std::string hash)
+{
+	bool numer = (flag[2] == '1');
+	bool upper = (flag[1] == '1');
+	bool lower = (flag[0] == '1');
+
+	std::set<std::string> limits;
+	std::string lim;
+
+	char lastchar,firstchar;
+
+	lastchar = lower? 'z': upper? 'Z':'9';
+	firstchar = numer? '0': upper? 'A':'a';
+
+	std::string lim1end(passLen-1, firstchar);
+	std::string lim2end(passLen-1, lastchar);
+
+	if(numer)
+	{
+		for(char c = '0';c<='9';c++)
+		{
+			lim = std::to_string(client_socket) + ':' + hash + ':' + flag + ':' + c + lim1end + ':' + c + lim2end;
+			limits.insert(lim);
+		}
+	}
+	if(upper)
+	{
+		for(char c = 'A';c<='Z';c++)
+		{
+			lim = std::to_string(client_socket) + ':' + hash + ':' + flag + ':' + c + lim1end + ':' + c + lim2end;
+			limits.insert(lim);
+		}
+	}	
+	if(lower)
+	{
+		for(char c = 'a';c<='z';c++)
+		{
+			lim = std::to_string(client_socket) + ':' + hash + ':' + flag + ':' + c + lim1end + ':' + c + lim2end;
+			limits.insert(lim);
+		}
+	}
+	return limits;
+	// client:hash:flag:limit1:limit2
+}
+
 int main()
 {	
 	int main_socket, accepted_socket, client_socket;
-	int max_socket, recv_bytes, yes = 1;
+	int max_socket, recv_bytes, yes = 1, passlen;
 	char recv_buffer[128];
 	unsigned int sin_size = sizeof(sockaddr);
 	fd_set master, reads;
-	std::string pass;
+	std::string pass, hash, flag, work, piece;
 	std::set<int> active_clients, idle_workers;
 	std::map<int, std::set<int> > active_workers;
 	std::map<int, int> workers_client;
+	std::set<std::string> pieces, new_pieces;
 
 	sockaddr_in socket_adr;
-	//! initializing client socket
 	socket_adr.sin_family = AF_INET;
-	//! port
 	socket_adr.sin_port = htons(PORT_NUM);					// custom port
-	//! in_addr
 	inet_aton(IP_ADDR, &(socket_adr.sin_addr));				// custom address
 	// socket_adr.sin_addr.s_addr = INADDR_ANY;				// current address
 	memset(&(socket_adr.sin_zero), '\0', 8);
@@ -107,12 +150,12 @@ int main()
 					{	
 						if (idle_workers.find(curr_socket) != idle_workers.end())
 						{
-							idle_workers.erase(idle_workers.find(curr_socket));
+							idle_workers.erase(curr_socket);
 							std::cout<<"An idle worker disconnected!\n";
 						}
 						else if (active_clients.find(curr_socket) != active_clients.end())
 						{
-							active_clients.erase(active_clients.find(curr_socket));
+							active_clients.erase(curr_socket);
 							std::cout<<"A client disconnected!\n";
 						}
 						else
@@ -123,6 +166,7 @@ int main()
 
 					close(curr_socket);
 					FD_CLR(curr_socket, &master);
+					// TODO : update max_socket 
 				}
 				// actual server work
 				else
@@ -176,11 +220,43 @@ int main()
 							idle_workers.insert(curr_socket);
 
 							break;
+
+						// a client 'r'equest
+						case 'r':
+
+							work = std::string(recv_buffer + 1);
+							int separator = work.find(':');
+							hash = work.substr(0, separator);
+							flag = work.substr(separator + 1, 3);
+							int new_separator = work.find(':', separator + 5);
+							passlen = std::stoi(work.substr(new_separator + 1, work.length() - new_separator - 1));
+
+							// new work pieces
+							new_pieces = dividework(flag, passlen, client_socket, hash);
+							pieces.insert(new_pieces.begin(), new_pieces.end());
+
+							break;
 					}
 				}
 
 			}
-		} 
+		}
+
+		// server assigns work to idle workers, from pieces
+		for(auto worker : idle_workers)
+		{	
+			if (pieces.empty())
+				break;
+
+			piece = (*pieces.begin());
+			int separator = piece.find(":");
+			client_socket = std::stoi(piece.substr(0, separator));
+			piece = piece.substr(separator+1, piece.length() - separator - 1);
+
+			xsend(worker, piece, "Could not send piece!");
+			idle_workers.erase(worker);
+		}
+
 	}
 
 	return 0;

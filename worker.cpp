@@ -139,9 +139,7 @@ int main()
 
 	//! initializing worker socket
 	s_socket_adr.sin_family = AF_INET;
-	//! port
 	s_socket_adr.sin_port 	= htons(S_PORT_NUM);		// server port
-	//! in_addr
 	inet_aton(S_IP_ADDR, &(s_socket_adr.sin_addr));		// server address
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
@@ -172,7 +170,7 @@ int main()
 		else
 		{	
 			inp = std::string(recv_buffer);
-			if (inp == "h")
+			if (inp == "halt")
 			{
 				thread_halt = true;
 			}
