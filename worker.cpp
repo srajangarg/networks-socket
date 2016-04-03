@@ -40,8 +40,8 @@ void *findPass(void* arg)
 	work = *reinterpret_cast<std::string*>(arg);
 
 	// first two characters of hash are same as salt
-	salt = work.substr(0, 2);
 	separator = work.find(':');
+	salt = work.substr(0, 2);
 	hash = work.substr(0, separator);
 	flag = work.substr(separator+1, 3);
 
@@ -50,7 +50,6 @@ void *findPass(void* arg)
 	bool lower = (flag[0] =='1');
 	
 	work = work.substr(separator+5);
-
 	separator = work.find(':');
 	limit1 = work.substr(0, separator);
 	limit2 = work.substr(separator + 1);
@@ -136,13 +135,11 @@ void *findPass(void* arg)
 
 int main(int argc, char* argv[])
 {
-	int recv_bytes, yes = 1;
-	int s_port_num;
-	char* s_ip_addr;
+	int recv_bytes, yes = 1, s_port_num;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
 	pthread_t process;
-	std::string inp;
+	std::string inp, s_ip_addr;
 	sockaddr_in s_socket_adr;
 
 	// read arguments
@@ -152,15 +149,16 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 
-	s_ip_addr  = argv[1];
+	s_ip_addr  = std::string(argv[1]);
 	s_port_num = std::stoi(argv[2]);
 
 	//! initializing worker socket
 	s_socket_adr.sin_family = AF_INET;
-	s_socket_adr.sin_port 	= htons(s_port_num);		// server port
-	inet_aton(s_ip_addr, &(s_socket_adr.sin_addr));		// server address
+	s_socket_adr.sin_port 	= htons(s_port_num);				// server port
+	inet_aton(s_ip_addr.c_str(), &(s_socket_adr.sin_addr));		// server address
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
+	// setting the socket to establish connection
 	worker_socket = socket(PF_INET, SOCK_STREAM, 0);
 	setsockopt(worker_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
@@ -173,7 +171,8 @@ int main(int argc, char* argv[])
 	xsend(worker_socket, HELLO, "Identity could not be established");
 
 	while(true)
-	{
+	{	
+		// recieve information from server
 		recv_bytes = recv(worker_socket, recv_buffer, sizeof(recv_buffer), 0);
 		if(recv_bytes <= 0)
 		{
@@ -192,11 +191,13 @@ int main(int argc, char* argv[])
 			if (inp == "halt")
 			{	
 				std::cout<<"Received halt from server!\n";
+				// static variable indicates thread function to halt
 				thread_halt = true;
 			}
 			else
 			{	
 				thread_halt = false;
+				std::cout<<"Trying "<<inp<<"\n";
 				pthread_create(&process, NULL, &findPass, &inp);
 			}
 		}

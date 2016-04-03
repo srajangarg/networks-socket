@@ -7,6 +7,7 @@
 
 #define BACKLOG 10
 #define HALT "halt"
+#define NOPASS "failed"
 
 void xsend(int socket, std::string mesg, std::string error)
 {	
@@ -73,7 +74,7 @@ std::set<std::string> dividework(std::string flag, int passLen, int client_socke
 		}
 	}
 	return limits;
-	// client:hash:flag:limit1:limit2
+	// each "limit" is of the form 'client:hash:flag:limit1:limit2'
 }
 
 int main(int argc, char* argv[])
@@ -86,10 +87,14 @@ int main(int argc, char* argv[])
 	fd_set master, reads;
 	std::string pass, hash, flag, work, piece, xpiece, random;
 	std::set<int> active_clients, success_clients, idle_workers;
-	std::map<int, std::set<int> > active_workers;					// map from client to the set of workers working on client's task
-	std::map<int, int> workers_client;								// map from worker to client on whose task it is working
-	std::map<int, std::string> workers_piece;							// map from worker to piece on which it is working
-	std::map<int, int> client_work_rem;								// map from client to no of pieces yet to be solved for the client
+	// map from client to the set of workers working on client's task
+	std::map<int, std::set<int> > active_workers;
+	// map from worker to client on whose task it is working
+	std::map<int, int> workers_client;
+	// map from worker to piece on which it is working
+	std::map<int, std::string> workers_piece;
+	// map from client to no of pieces yet to be solved for the client
+	std::map<int, int> client_work_rem;
 	std::set<std::string> pieces, new_pieces;
 
 	// read arguments
@@ -107,7 +112,7 @@ int main(int argc, char* argv[])
 	socket_adr.sin_addr.s_addr = INADDR_ANY;				// current address
 	memset(&(socket_adr.sin_zero), '\0', 8);
 
-
+	// setting the socket to establish connection
 	main_socket = socket(PF_INET, SOCK_STREAM, 0);
 	setsockopt(main_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
@@ -158,19 +163,23 @@ int main(int argc, char* argv[])
 
 				// errors + disconnects
 				if(recv_bytes <= 0)
-				{
+				{	
+					// error in receiving
 					if (recv_bytes < 0)
 					{
 						std::cout<<"Error receiving data!\n";
 					}
+					// someone disconnected
 					else if (recv_bytes == 0)
 					{	
+						// an idle worker disconnected
 						if (idle_workers.find(curr_socket) != idle_workers.end())
 						{
 							idle_workers.erase(curr_socket);
 							workers_client.erase(curr_socket);
 							std::cout<<"An idle worker disconnected! Worker "<<curr_socket<<"\n";
 						}
+						// an active client disconnected
 						else if (active_clients.find(curr_socket) != active_clients.end())
 						{
 							active_clients.erase(curr_socket);
@@ -193,11 +202,7 @@ int main(int argc, char* argv[])
 							client_work_rem.erase(client_socket);
 							std::cout<<"Client "<<curr_socket<<" disconnected in between the process!\n";
 						}
-						else if(success_clients.find(curr_socket) != success_clients.end())
-						{
-							success_clients.erase(curr_socket);
-							std::cout<<"Client "<<curr_socket<<" disconnected after successfully getting the result!\n";
-						}
+						// a non idle worker disconnected
 						else
 						{
 							std::map<int,std::string>::iterator it = workers_piece.find(curr_socket);
@@ -211,7 +216,6 @@ int main(int argc, char* argv[])
 
 					close(curr_socket);
 					FD_CLR(curr_socket, &master);
-					// TODO : update max_socket 
 				}
 				// actual server work
 				else
@@ -245,9 +249,7 @@ int main(int argc, char* argv[])
 							// add all workers which were working on client's task to idle
 							// also send them a halt message
 							for(auto p : active_workers[client_socket])
-							{
 								xsend(p, HALT, "Halt");
-							}
 
 							// remove remaining pieces from pieces set
 							for(auto p : pieces)
@@ -265,7 +267,6 @@ int main(int argc, char* argv[])
 							client_work_rem.erase(client_socket);
 
 							FD_CLR(client_socket, &master);
-							// TODO : update max_socket
 							break;
 						}
 
@@ -279,7 +280,7 @@ int main(int argc, char* argv[])
 							client_work_rem[client_socket]--;
 							if(client_work_rem[client_socket]==0)
 							{
-								xsend(client_socket, "Failed!", "No Password Found");
+								xsend(client_socket, NOPASS, "No Password Found");
 								active_clients.erase(client_socket);
 								success_clients.insert(client_socket);
 							}

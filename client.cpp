@@ -27,10 +27,8 @@ void xerror(std::string x)
 
 int main(int argc, char* argv[])
 {	
-	int client_socket, recv_bytes, yes = 1;
-	int s_port_num;
-	char* s_ip_addr;
-	std::string inp, request;
+	int client_socket, recv_bytes, yes = 1, s_port_num;
+	std::string inp, request, s_ip_addr;
 	std::string hash,passLen,flag;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
@@ -43,7 +41,8 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	s_ip_addr = argv[1];
+	// argument conversion
+	s_ip_addr = std::string(argv[1]);
 	s_port_num = std::stoi(argv[2]);
 	hash = argv[3];
 	passLen = argv[4];
@@ -51,10 +50,11 @@ int main(int argc, char* argv[])
 
 	//! initializing client socket
 	s_socket_adr.sin_family = AF_INET;
-	s_socket_adr.sin_port 	= htons(s_port_num);		// server port
-	inet_aton(s_ip_addr, &(s_socket_adr.sin_addr));		// server address
+	s_socket_adr.sin_port 	= htons(s_port_num);				// server port
+	inet_aton(s_ip_addr.c_str(), &(s_socket_adr.sin_addr));		// server address
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
+	// setting the socket to establish connection
 	client_socket = socket(PF_INET, SOCK_STREAM, 0);
 	setsockopt(client_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
@@ -64,11 +64,13 @@ int main(int argc, char* argv[])
 	if (connect(client_socket, (sockaddr*) &s_socket_adr, sin_size) == -1)
 		xerror("Could not connect to server!");
 
+	// constructing the has in the format, and starting clock, after sending to server
 	request = 'r' + hash + ":" + flag + ":" + passLen;
 	xsend(client_socket, request, "Hash");
 	std::cout<<"Sent cracking request!\n";
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
+	// waiting for sever to reply with the password
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 
 	if(recv_bytes <= 0)
@@ -81,11 +83,12 @@ int main(int argc, char* argv[])
 		close(client_socket);
 		return 1;
 	}
-	else if(strcmp(recv_buffer,"Failed!")==0)
+	else if(strcmp(recv_buffer,"failed")==0)
 		std::cout<<"No password exist for given hash, flags and password length\n";
 	else
 		std::cout<<"Cracked! Password : "<<recv_buffer<<"\n";
 
+	// stop clock and output duration
 	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
 	auto duration = (float)(std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count())/1000000;
 	std::cout<<"It took "<<duration<<" seconds!\n";
