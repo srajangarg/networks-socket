@@ -129,7 +129,6 @@ void *findPass(void* arg)
 	}
 
 	// Password not in limits
-	std::cout<<"Failed!\n";
 	xsend(worker_socket, FAIL, "Fail");
 
 	return NULL;

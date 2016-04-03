@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <chrono>
 
 #define HELLO "ic"
 
@@ -66,6 +67,7 @@ int main(int argc, char* argv[])
 	request = 'r' + hash + ":" + flag + ":" + passLen;
 	xsend(client_socket, request, "Hash");
 	std::cout<<"Sent cracking request!\n";
+	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
 	recv_bytes = recv(client_socket, recv_buffer, sizeof(recv_buffer), 0);
 
@@ -83,6 +85,10 @@ int main(int argc, char* argv[])
 		std::cout<<"No password exist for given hash, flags and password length\n";
 	else
 		std::cout<<"Cracked! Password : "<<recv_buffer<<"\n";
+
+	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+	auto duration = (float)(std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count())/1000000;
+	std::cout<<"It took "<<duration<<" seconds!\n";
 
 	return 0;
 }
