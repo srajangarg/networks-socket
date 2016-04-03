@@ -62,8 +62,6 @@ int main(int argc, char* argv[])
 	
 	if (connect(client_socket, (sockaddr*) &s_socket_adr, sin_size) == -1)
 		xerror("Could not connect to server!");
-	
-	//xsend(client_socket, HELLO, "Identity could not be established");
 
 	request = 'r' + hash + ":" + flag + ":" + passLen;
 	xsend(client_socket, request, "Hash");

@@ -27,6 +27,7 @@ void xerror(std::string x)
 	std::exit(1);
 }
 
+// dividing the range of passwork in pieces with keeping the first letter fixed in each piece
 std::set<std::string> dividework(std::string flag, int passLen, int client_socket, std::string hash)
 {
 	bool numer = (flag[2] == '1');
@@ -38,14 +39,17 @@ std::set<std::string> dividework(std::string flag, int passLen, int client_socke
 
 	char lastchar,firstchar;
 
+	// chars with lowest and highest ASCII value included according to the flag
 	lastchar = lower? 'z': upper? 'Z':'9';
 	firstchar = numer? '0': upper? 'A':'a';
 
+	//end parts of limits fixed in each piece
 	std::string lim1end(passLen-1, firstchar);
 	std::string lim2end(passLen-1, lastchar);
 
 	if(numer)
 	{
+		//iterate over all digits as first character
 		for(char c = '0';c<='9';c++)
 		{
 			lim = std::to_string(client_socket) + ':' + hash + ':' + flag + ':' + c + lim1end + ':' + c + lim2end;
@@ -54,6 +58,7 @@ std::set<std::string> dividework(std::string flag, int passLen, int client_socke
 	}
 	if(upper)
 	{
+		//iterate over all uppercase alphabet as first character
 		for(char c = 'A';c<='Z';c++)
 		{
 			lim = std::to_string(client_socket) + ':' + hash + ':' + flag + ':' + c + lim1end + ':' + c + lim2end;
@@ -62,6 +67,7 @@ std::set<std::string> dividework(std::string flag, int passLen, int client_socke
 	}	
 	if(lower)
 	{
+		//iterate over all lowercase alphabet as first character
 		for(char c = 'a';c<='z';c++)
 		{
 			lim = std::to_string(client_socket) + ':' + hash + ':' + flag + ':' + c + lim1end + ':' + c + lim2end;
@@ -171,6 +177,23 @@ int main(int argc, char* argv[])
 						else if (active_clients.find(curr_socket) != active_clients.end())
 						{
 							active_clients.erase(curr_socket);
+
+							// Halt all the workers working on the client's task
+							for(auto p : active_workers[client_socket])
+							{
+								xsend(p, HALT, "Halt");
+							}
+
+							// remove remaining pieces from pieces set
+							for(auto p : pieces)
+							{
+								int separator = p.find(":");
+								if(std::stoi(p.substr(0, separator)) == client_socket)
+									pieces.erase(p);
+							}
+							
+							active_workers.erase(client_socket);
+							client_work_rem.erase(client_socket);
 							std::cout<<"Client "<<curr_socket<<" disconnected in between the process!\n";
 						}
 						else if(success_clients.find(curr_socket) != success_clients.end())
@@ -218,14 +241,15 @@ int main(int argc, char* argv[])
 							pass = std::string(recv_buffer + 1);
 							client_socket = workers_client[curr_socket];
 							std::cout<<"The password of Client "<<client_socket<<" is "<<pass<<"\n";
-							client_work_rem.erase(client_socket);
+							
+							active_workers[client_socket].erase(curr_socket);
+							idle_workers.insert(curr_socket);
 
 							// add all workers which were working on client's task to idle
 							// also send them a halt message
 							for(auto p : active_workers[client_socket])
 							{
 								xsend(p, HALT, "Halt");
-								idle_workers.insert(p);
 							}
 
 							// remove remaining pieces from pieces set
@@ -241,6 +265,7 @@ int main(int argc, char* argv[])
 							active_clients.erase(client_socket);
 							success_clients.insert(client_socket);
 							active_workers.erase(client_socket);
+							client_work_rem.erase(client_socket);
 
 							FD_CLR(client_socket, &master);
 							// TODO : update max_socket
@@ -288,7 +313,14 @@ int main(int argc, char* argv[])
 
 							break;
 						}
+						// a worker 'h'alted the work
+						case 'h':	
+						{
+							idle_workers.insert(curr_socket);
+							std::cout<<"Worker "<<curr_socket<<" stopped the given task!\n";
 
+							break;
+						}
 						default :
 						{
 							random = std::string(recv_buffer);

@@ -34,12 +34,13 @@ void xerror(std::string x)
 
 void *findPass(void* arg)
 {
-	// hash:flag:limit1:limit2 (both inclusive)
+	// Fomat of arg : hash:flag:limit1:limit2 (both inclusive)
 	int separator;
 	std::string work, hash, salt, flag, limit1, limit2, password;
 
 	work = *reinterpret_cast<std::string*>(arg);
 
+	// first two characters of hash are same as salt
 	salt = work.substr(0, 2);
 	separator = work.find(':');
 	hash = work.substr(0, separator);
@@ -68,6 +69,8 @@ void *findPass(void* arg)
 		}
 		if(password == limit2)
 			break;
+
+		// go to lexicographically next passwork
 		for(int i = password.size()-1; i>=0; i--)
 		{
 			if (password[i] == '9')
@@ -120,11 +123,13 @@ void *findPass(void* arg)
 		}
 		if (thread_halt == true)
 		{
+			// halt the process
 			xsend(worker_socket, HALTSUCCESS, "Halt Success");
 			return NULL;
 		}
 	}
 
+	// Password not in limits
 	std::cout<<"Failed!\n";
 	xsend(worker_socket, FAIL, "Fail");
 
@@ -188,7 +193,7 @@ int main(int argc, char* argv[])
 
 			if (inp == "halt")
 			{	
-				std::cout<<"Recieved halt from server!";
+				std::cout<<"Received halt from server!\n";
 				thread_halt = true;
 			}
 			else
