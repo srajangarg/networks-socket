@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <chrono>
 
 #define HELLO "ic"
@@ -27,12 +28,13 @@ void xerror(std::string x)
 
 int main(int argc, char* argv[])
 {	
-	int client_socket, recv_bytes, yes = 1, s_port_num;
+	int client_socket, recv_bytes, yes = 1, s_port_num, ip_status;
 	std::string inp, request, s_ip_addr;
 	std::string hash,passLen,flag;
 	unsigned int sin_size = sizeof(sockaddr);
 	char recv_buffer[128], send_buffer[128];
 	sockaddr_in s_socket_adr;
+	struct hostent* h;
 
 	// read arguments
 	if(argc < 6)
@@ -50,8 +52,15 @@ int main(int argc, char* argv[])
 
 	//! initializing client socket
 	s_socket_adr.sin_family = AF_INET;
-	s_socket_adr.sin_port 	= htons(s_port_num);				// server port
-	inet_aton(s_ip_addr.c_str(), &(s_socket_adr.sin_addr));		// server address
+	s_socket_adr.sin_port 	= htons(s_port_num);									// server port
+	ip_status = inet_pton(AF_INET, s_ip_addr.c_str(), &(s_socket_adr.sin_addr));	// server address
+
+	if(ip_status == -1)
+	{
+		h = gethostbyname(s_ip_addr.c_str());
+		inet_pton(AF_INET, inet_ntoa(*((in_addr*)h->h_addr)), &(s_socket_adr.sin_addr));
+	}
+
 	memset(&(s_socket_adr.sin_zero), '\0', 8);
 
 	// setting the socket to establish connection
