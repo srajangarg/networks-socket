@@ -4,7 +4,6 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <fstream>
 
 #define IP_ADDR  "127.0.0.1"
 #define BACKLOG 10
@@ -98,7 +97,7 @@ int main(int argc, char* argv[])
 	if(argc < 2)
 	{
 		std::cout<<"Syntax : ./server <server-port>\n";
-		return 0;
+		return 1;
 	}
 
 	portNo = std::stoi(argv[1]);

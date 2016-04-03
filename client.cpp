@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
 	if(argc < 6)
 	{
 		std::cout<<"Syntax : ./user <server ip> <server-port> <hash> <passwd-length> <flag>\n";
+		return 1;
 	}
 
 	s_ip_addr = argv[1];
