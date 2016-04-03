@@ -7,7 +7,6 @@
 
 #define HELLO "ic"
 
-
 void xsend(int socket, std::string mesg, std::string error)
 {	
 	char send_buffer[128];

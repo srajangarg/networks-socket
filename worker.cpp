@@ -7,7 +7,6 @@
 #include <crypt.h>
 #include <pthread.h>
 
-
 #define FAIL "fw"
 #define HALTSUCCESS "hw"
 #define HELLO "iw"

@@ -5,7 +5,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define IP_ADDR  "127.0.0.1"
 #define BACKLOG 10
 #define HALT "halt"
 
@@ -105,8 +104,7 @@ int main(int argc, char* argv[])
 	sockaddr_in socket_adr;
 	socket_adr.sin_family = AF_INET;
 	socket_adr.sin_port = htons(portNo);					// custom port
-	inet_aton(IP_ADDR, &(socket_adr.sin_addr));				// custom address
-	// socket_adr.sin_addr.s_addr = INADDR_ANY;				// current address
+	socket_adr.sin_addr.s_addr = INADDR_ANY;				// current address
 	memset(&(socket_adr.sin_zero), '\0', 8);
 
 
